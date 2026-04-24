@@ -1,5 +1,5 @@
 """
-widgets.py — Reusable CTk widgets: FileRow and ConflictDialog.
+ui/widgets.py — Reusable CTk widgets: FileRow and ConflictDialog.
 """
 
 import os
@@ -8,7 +8,7 @@ import threading
 
 import customtkinter as ctk
 
-from constants import (
+from ui.theme import (
     ACCENT, ACCENT2, BG_CARD, BG_MAIN, TEXT_DIM,
     STATUS_COLORS, STATUS_ICONS,
 )
@@ -16,7 +16,7 @@ from constants import (
 
 # ══════════════════════════════════════════════════════════════════════════════
 class FileRow(ctk.CTkFrame):
-    """Single file entry in the queue list."""
+    """Single file entry shown in the queue list."""
 
     def __init__(self, master, file_path: str, on_remove, **kw):
         super().__init__(master, fg_color=BG_CARD, corner_radius=8, **kw)
@@ -54,8 +54,7 @@ class FileRow(ctk.CTkFrame):
     def set_status(self, status: str):
         self._status = status
         color = STATUS_COLORS.get(status, TEXT_DIM)
-        self.icon_lbl.configure(
-            text=STATUS_ICONS.get(status, "?"), text_color=color)
+        self.icon_lbl.configure(text=STATUS_ICONS.get(status, "?"), text_color=color)
         self.status_lbl.configure(text=status.capitalize(), text_color=color)
         if status == "done":
             self.rm_btn.configure(state="disabled")
@@ -69,7 +68,7 @@ class FileRow(ctk.CTkFrame):
 class ConflictDialog(ctk.CTkToplevel):
     """
     Modal dialog shown when the output MP4 already exists.
-    Blocks the caller via threading.Event until the user chooses an action.
+    Blocks the caller via threading.Event until the user picks an action.
     """
 
     def __init__(self, master, existing_path: str, source_path: str,
@@ -83,13 +82,13 @@ class ConflictDialog(ctk.CTkToplevel):
         self._result_holder = result_holder
         self._event         = event
 
-        # ── File metadata ──────────────────────────────────────────────────────
-        fname        = os.path.basename(existing_path)
-        exist_mtime  = os.path.getmtime(existing_path)
-        exist_size   = os.path.getsize(existing_path)
-        src_mtime    = os.path.getmtime(source_path)
-        src_size     = os.path.getsize(source_path)
-        exist_newer  = exist_mtime >= src_mtime
+        # ── Metadata ──────────────────────────────────────────────────────────
+        fname       = os.path.basename(existing_path)
+        exist_mtime = os.path.getmtime(existing_path)
+        exist_size  = os.path.getsize(existing_path)
+        src_mtime   = os.path.getmtime(source_path)
+        src_size    = os.path.getsize(source_path)
+        exist_newer = exist_mtime >= src_mtime
 
         def fmt_date(ts):
             return time.strftime("%b %d, %Y  %H:%M", time.localtime(ts))
@@ -106,13 +105,10 @@ class ConflictDialog(ctk.CTkToplevel):
         ctk.CTkLabel(hdr, text="\u26a0", font=("Segoe UI Emoji", 22),
                      text_color="#f7c948").pack(side="left")
         ctk.CTkLabel(hdr, text="  File Already Exists",
-                     font=("Inter", 16, "bold"),
-                     text_color="white").pack(side="left")
+                     font=("Inter", 16, "bold"), text_color="white").pack(side="left")
 
         ctk.CTkLabel(self, text=fname, font=("Inter", 12),
-                     text_color=ACCENT, wraplength=500
-                     ).pack(padx=20, anchor="w")
-
+                     text_color=ACCENT, wraplength=500).pack(padx=20, anchor="w")
         ctk.CTkFrame(self, height=1, fg_color="#2e2e50").pack(fill="x", padx=20, pady=10)
 
         # ── Two-column comparison ──────────────────────────────────────────────
@@ -121,72 +117,64 @@ class ConflictDialog(ctk.CTkToplevel):
         cols.columnconfigure(0, weight=1)
         cols.columnconfigure(1, weight=1)
 
-        def _info_card(col, label, icon, date_str, size_str, is_newer):
-            border      = "#4ade80" if is_newer else "#2e2e50"
-            label_color = "#4ade80" if is_newer else TEXT_DIM
+        def _card(col, label, icon, date_str, size_str, newer):
+            border = "#4ade80" if newer else "#2e2e50"
+            lc     = "#4ade80" if newer else TEXT_DIM
             card = ctk.CTkFrame(cols, fg_color=BG_MAIN, corner_radius=10,
                                 border_width=1, border_color=border)
             card.grid(row=0, column=col, sticky="ew",
                       padx=(0, 6) if col == 0 else (6, 0))
             ctk.CTkLabel(card, text=f"{icon}  {label}",
-                         font=("Inter", 11, "bold"),
-                         text_color=label_color).pack(anchor="w", padx=12, pady=(10, 4))
+                         font=("Inter", 11, "bold"), text_color=lc
+                         ).pack(anchor="w", padx=12, pady=(10, 4))
             ctk.CTkLabel(card, text=f"\U0001f4c5  {date_str}",
                          font=("Inter", 10), text_color="white",
                          wraplength=210, justify="left").pack(anchor="w", padx=12)
             ctk.CTkLabel(card, text=f"\U0001f4be  {size_str}",
                          font=("Inter", 10), text_color=TEXT_DIM
                          ).pack(anchor="w", padx=12, pady=(2, 4))
-            if is_newer:
-                ctk.CTkLabel(card, text="\u25cf  Newer",
-                             font=("Inter", 10, "bold"),
-                             text_color="#4ade80").pack(anchor="w", padx=12, pady=(0, 8))
-            else:
-                ctk.CTkLabel(card, text="", font=("Inter", 10)).pack(pady=(0, 8))
+            badge = "\u25cf  Newer" if newer else ""
+            ctk.CTkLabel(card, text=badge,
+                         font=("Inter", 10, "bold") if newer else ("Inter", 10),
+                         text_color="#4ade80" if newer else TEXT_DIM
+                         ).pack(anchor="w", padx=12, pady=(0, 8))
 
-        _info_card(0, "Existing MP4", "\U0001f4c1",
-                   fmt_date(exist_mtime), fmt_size(exist_size), exist_newer)
-        _info_card(1, "Source Audio", "\U0001f3a7",
-                   fmt_date(src_mtime),  fmt_size(src_size),   not exist_newer)
+        _card(0, "Existing MP4", "\U0001f4c1",
+              fmt_date(exist_mtime), fmt_size(exist_size), exist_newer)
+        _card(1, "Source Audio", "\U0001f3a7",
+              fmt_date(src_mtime),  fmt_size(src_size),   not exist_newer)
 
         ctk.CTkLabel(
             self,
             text="\u24d8  Sizes differ: source is audio-only; MP4 output includes a video track",
-            font=("Inter", 9), text_color="#555577", wraplength=500
+            font=("Inter", 9), text_color="#555577", wraplength=500,
         ).pack(padx=20, anchor="w", pady=(0, 2))
 
         # ── Hint ───────────────────────────────────────────────────────────────
-        if exist_newer:
-            hint, hint_color = "Existing file is up-to-date \u2014 consider skipping.", "#4ade80"
-        else:
-            hint, hint_color = "Source is newer \u2014 consider overwriting.", "#f7c948"
+        hint, hc = (
+            ("Existing file is up-to-date \u2014 consider skipping.", "#4ade80")
+            if exist_newer else
+            ("Source is newer \u2014 consider overwriting.", "#f7c948")
+        )
         ctk.CTkLabel(self, text=hint, font=("Inter", 11),
-                     text_color=hint_color).pack(padx=20, pady=(0, 8))
+                     text_color=hc).pack(padx=20, pady=(0, 8))
 
         # ── Buttons ────────────────────────────────────────────────────────────
-        btn_row = ctk.CTkFrame(self, fg_color="transparent")
-        btn_row.pack(fill="x", padx=20, pady=(0, 18))
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=20, pady=(0, 18))
 
-        ctk.CTkButton(
-            btn_row, text="\u23ed  Skip", width=140, height=40,
-            fg_color="#2e2e50", hover_color="#3a3a60",
-            text_color=TEXT_DIM, font=("Inter", 12),
-            command=lambda: self._choose("skip")
-        ).pack(side="left", padx=(0, 8))
-
-        ctk.CTkButton(
-            btn_row, text="\u270f  Rename", width=140, height=40,
-            fg_color=ACCENT2, hover_color="#6d28d9",
-            font=("Inter", 12, "bold"),
-            command=lambda: self._choose("rename")
-        ).pack(side="left", padx=(0, 8))
-
-        ctk.CTkButton(
-            btn_row, text="\u26a1  Overwrite", width=140, height=40,
-            fg_color="#dc2626", hover_color="#b91c1c",
-            font=("Inter", 12, "bold"),
-            command=lambda: self._choose("overwrite")
-        ).pack(side="left")
+        for text, color, hover, action in [
+            ("\u23ed  Skip",      "#2e2e50", "#3a3a60", "skip"),
+            ("\u270f  Rename",    ACCENT2,   "#6d28d9", "rename"),
+            ("\u26a1  Overwrite", "#dc2626", "#b91c1c", "overwrite"),
+        ]:
+            ctk.CTkButton(
+                row, text=text, width=140, height=40,
+                fg_color=color, hover_color=hover,
+                text_color=TEXT_DIM if action == "skip" else "white",
+                font=("Inter", 12, "bold") if action != "skip" else ("Inter", 12),
+                command=lambda a=action: self._choose(a),
+            ).pack(side="left", padx=(0, 8) if action != "overwrite" else 0)
 
         self.protocol("WM_DELETE_WINDOW", lambda: self._choose("skip"))
         self.update_idletasks()
