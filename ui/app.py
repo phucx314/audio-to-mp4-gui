@@ -1,8 +1,10 @@
 """
-app.py — _BaseApp mixin: all UI-building and event-handling logic.
+ui/app.py — _BaseApp mixin: all UI-building and event-handling logic.
 
-The concrete App class (with the correct Tk base) is assembled in main_gui.py
-after the tkinterdnd2 probe has run. This file has zero circular dependencies.
+The concrete App class (picking the correct Tk base) is assembled in
+main_gui.py after the DnD probe has run.
+
+Layer rules: imports from core.* and ui.* only — never from main_gui.
 """
 
 import os
@@ -14,23 +16,25 @@ from tkinter import filedialog, colorchooser
 
 import customtkinter as ctk
 
-from constants import (
-    APP_TITLE, WIN_W, WIN_H,
-    ACCENT, BG_CARD, BG_MAIN, BG_DROP, TEXT_DIM,
+from core.pipeline import AUDIO_EXTENSIONS, get_default_output_dir, process_file
+from ui.theme import (
+    APP_TITLE, WIN_W, WIN_H, WIN_MIN_W, WIN_MIN_H,
+    ACCENT, ACCENT_HOVER, BG_CARD, BG_MAIN, BG_DROP, TEXT_DIM,
 )
-from widgets import FileRow, ConflictDialog
-from pipeline import AUDIO_EXTENSIONS, get_default_output_dir, process_file
-import dnd_support
+from ui.widgets import FileRow, ConflictDialog
+import ui.dnd_support as dnd
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 class _BaseApp:
-    """Mixin with all UI-building and application logic."""
+    """Mixin providing the full application UI and logic."""
+
+    # ── Initialisation ────────────────────────────────────────────────────────
 
     def _init_app(self):
         self.title(APP_TITLE)
         self.geometry(f"{WIN_W}x{WIN_H}")
-        self.minsize(820, 560)
+        self.minsize(WIN_MIN_W, WIN_MIN_H)
         try:
             self.configure(bg=BG_MAIN)
         except Exception:
@@ -47,7 +51,7 @@ class _BaseApp:
         self._build_ui()
         self._poll_log()
 
-    # ── UI construction ────────────────────────────────────────────────────────
+    # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_ui(self):
         # Header
@@ -58,7 +62,7 @@ class _BaseApp:
                      font=("Inter", 20, "bold"), text_color="white"
                      ).pack(side="left", padx=12)
         ctk.CTkLabel(hdr, text="Gen PNG  \u2192  Standardize Name  \u2192  Export MP4",
-                     font=("Inter", 12), text_color=TEXT_DIM
+                     font=("Inter", 12), text_color=TEXT_DIM,
                      ).pack(side="left", padx=4)
 
         body = ctk.CTkFrame(self, fg_color=BG_MAIN, corner_radius=0)
@@ -97,7 +101,7 @@ class _BaseApp:
         icon_lbl.pack(pady=(20, 4))
         icon_lbl.bind("<Button-1>", lambda e: self._pick_files())
 
-        dnd_prefix = "Drag & Drop  or  " if dnd_support.DND_AVAILABLE else ""
+        dnd_prefix = "Drag & Drop  or  " if dnd.DND_AVAILABLE else ""
         main_lbl = ctk.CTkLabel(
             self._drop_zone,
             text=f"{dnd_prefix}Click to browse files",
@@ -109,10 +113,10 @@ class _BaseApp:
             self._drop_zone,
             text="mp3  \u00b7  m4a  \u00b7  aac  \u00b7  wav  \u00b7  amr  \u00b7  mid  \u00b7  "
                  "3ga  \u00b7  ogg  \u00b7  flac  \u00b7  wma",
-            font=("Inter", 10), text_color="#444466"
+            font=("Inter", 10), text_color="#444466",
         ).pack(pady=(2, 0))
 
-        if dnd_support.DND_AVAILABLE:
+        if dnd.DND_AVAILABLE:
             self._drop_zone.after_idle(self._register_dnd_recursive, self._drop_zone)
 
     def _build_queue(self, parent):
@@ -183,7 +187,7 @@ class _BaseApp:
         self._sec(parent, "PNG Style", r); r += 1
         ctk.CTkSegmentedButton(
             parent, values=["Style 1", "Style 2"],
-            variable=self._style, font=("Inter", 12)
+            variable=self._style, font=("Inter", 12),
         ).grid(row=r, column=0, sticky="ew", padx=18, pady=(4, 14)); r += 1
 
         self._sec(parent, "Background Color", r); r += 1
@@ -197,7 +201,6 @@ class _BaseApp:
         out_row = ctk.CTkFrame(parent, fg_color="transparent")
         out_row.grid(row=r, column=0, sticky="ew", padx=18, pady=(4, 2)); r += 1
         out_row.columnconfigure(0, weight=1)
-
         ctk.CTkEntry(out_row, textvariable=self._output_dir, font=("Inter", 11)
                      ).grid(row=0, column=0, sticky="ew")
         ctk.CTkButton(out_row, text="\U0001f4c1", width=36,
@@ -224,7 +227,7 @@ class _BaseApp:
             fg_color="transparent", border_width=1,
             border_color="#444466", text_color=TEXT_DIM,
             hover_color="#2a2a3e", font=("Inter", 12),
-            command=self._open_output_folder
+            command=self._open_output_folder,
         ).grid(row=r, column=0, sticky="ew", padx=18, pady=(0, 6)); r += 1
 
         self._stats_lbl = ctk.CTkLabel(
@@ -236,12 +239,12 @@ class _BaseApp:
         ctk.CTkLabel(parent, text=text, font=("Inter", 12, "bold"),
                      text_color=TEXT_DIM).grid(row=row, column=0, sticky="w", padx=18)
 
-    # ── DnD helpers ───────────────────────────────────────────────────────────
+    # ── DnD ───────────────────────────────────────────────────────────────────
 
     def _register_dnd_recursive(self, widget):
         """Register widget and all descendants as DnD drop targets."""
         try:
-            widget.drop_target_register(dnd_support.DND_FILES)
+            widget.drop_target_register(dnd.DND_FILES)
             widget.dnd_bind("<<Drop>>", self._on_drop)
         except Exception:
             pass
@@ -249,51 +252,47 @@ class _BaseApp:
             self._register_dnd_recursive(child)
 
     def _bind_scroll_recursive(self, widget):
-        """Bind mouse-wheel on widget tree to scroll the queue frame."""
-        canvas = getattr(self._queue_frame, '_parent_canvas', None)
+        """Propagate scroll-wheel events to the queue canvas (Linux fix)."""
+        canvas = getattr(self._queue_frame, "_parent_canvas", None)
         if canvas is None:
             return
 
-        def _linux(event):
-            canvas.yview_scroll(-1 if event.num == 4 else 1, 'units')
+        def _linux(e): canvas.yview_scroll(-1 if e.num == 4 else 1, "units")
+        def _win(e):   canvas.yview_scroll(int(-e.delta / 120), "units")
 
-        def _win(event):
-            canvas.yview_scroll(int(-event.delta / 120), 'units')
-
-        def _bind_one(w):
-            w.bind('<Button-4>',   _linux, add='+')
-            w.bind('<Button-5>',   _linux, add='+')
-            w.bind('<MouseWheel>', _win,   add='+')
+        def _bind(w):
+            w.bind("<Button-4>",   _linux, add="+")
+            w.bind("<Button-5>",   _linux, add="+")
+            w.bind("<MouseWheel>", _win,   add="+")
             for child in w.winfo_children():
-                _bind_one(child)
+                _bind(child)
 
-        _bind_one(widget)
+        _bind(widget)
 
     # ── Conflict resolver ─────────────────────────────────────────────────────
 
     def _conflict_resolver(self, existing_path: str, source_path: str) -> str:
-        """Block worker thread; show ConflictDialog on main thread."""
+        """Block the worker thread; show ConflictDialog on the main thread."""
         event         = threading.Event()
         result_holder = ["overwrite"]
 
-        def _show():
-            ConflictDialog(self, existing_path, source_path, result_holder, event)
-
-        self.after(0, _show)
+        self.after(0, lambda: ConflictDialog(
+            self, existing_path, source_path, result_holder, event))
         event.wait()
         return result_holder[0]
 
     # ── File management ───────────────────────────────────────────────────────
 
-    def _parse_dnd_paths(self, data: str) -> list:
+    @staticmethod
+    def _parse_dnd_paths(data: str) -> list[str]:
         paths, data, i = [], data.strip(), 0
         while i < len(data):
-            if data[i] == '{':
-                end = data.index('}', i)
+            if data[i] == "{":
+                end = data.index("}", i)
                 paths.append(data[i+1:end])
                 i = end + 2
             else:
-                end = data.find(' ', i)
+                end = data.find(" ", i)
                 if end == -1:
                     paths.append(data[i:])
                     break
@@ -306,15 +305,14 @@ class _BaseApp:
             self._add_file(p)
 
     def _pick_files(self):
-        files = filedialog.askopenfilenames(
+        for f in filedialog.askopenfilenames(
             title="Select audio files",
             filetypes=[
                 ("Audio files",
                  "*.mp3 *.m4a *.aac *.wav *.amr *.mid *.3ga *.3gp "
                  "*.wma *.awb *.ogg *.flac"),
                 ("All files", "*.*"),
-            ])
-        for f in files:
+            ]):
             self._add_file(f)
 
     def _add_file(self, path: str):
@@ -323,7 +321,7 @@ class _BaseApp:
         if os.path.splitext(path)[1].lower() not in AUDIO_EXTENSIONS:
             self._log(f"Skipped (unsupported): {os.path.basename(path)}")
             return
-        if path in [r.file_path for r in self._rows]:
+        if path in {r.file_path for r in self._rows}:
             return
         row = FileRow(self._queue_frame, path, on_remove=self._remove_row)
         row.pack(fill="x", pady=3, padx=4)
@@ -334,8 +332,7 @@ class _BaseApp:
     def _remove_row(self, row: FileRow):
         if self._running:
             return
-        row.pack_forget()
-        row.destroy()
+        row.pack_forget(); row.destroy()
         self._rows.remove(row)
         self._update_stats()
 
@@ -343,8 +340,7 @@ class _BaseApp:
         if self._running:
             return
         for row in list(self._rows):
-            row.pack_forget()
-            row.destroy()
+            row.pack_forget(); row.destroy()
         self._rows.clear()
         self._progress.set(0)
         self._prog_lbl.configure(text="0 / 0")
@@ -354,13 +350,11 @@ class _BaseApp:
         total = len(self._rows)
         done  = sum(1 for r in self._rows if r._status == "done")
         errs  = sum(1 for r in self._rows if r._status == "error")
-        if total == 0:
-            self._stats_lbl.configure(text="No files added yet")
-        else:
-            self._stats_lbl.configure(
-                text=f"{total} file(s)  \u00b7  {done} done  \u00b7  {errs} error(s)")
+        self._stats_lbl.configure(
+            text="No files added yet" if total == 0
+            else f"{total} file(s)  \u00b7  {done} done  \u00b7  {errs} error(s)")
 
-    # ── Settings callbacks ────────────────────────────────────────────────────
+    # ── Settings ──────────────────────────────────────────────────────────────
 
     def _pick_color(self):
         c = colorchooser.askcolor(color=self._bg_color, title="PNG Background Color")[1]
@@ -377,22 +371,19 @@ class _BaseApp:
         path = self._output_dir.get()
         os.makedirs(path, exist_ok=True)
         system = platform.system()
-        if system == "Windows":
-            os.startfile(path)
-        elif system == "Darwin":
-            subprocess.Popen(["open", path])
-        else:
-            subprocess.Popen(["xdg-open", path])
+        if   system == "Windows": os.startfile(path)
+        elif system == "Darwin":  subprocess.Popen(["open", path])
+        else:                     subprocess.Popen(["xdg-open", path])
 
     # ── Processing ────────────────────────────────────────────────────────────
 
     def _start_processing(self):
         pending = [r for r in self._rows if r._status in ("pending", "error", "skipped")]
-        if not pending:
-            self._log("No pending files to process.")
+        if not pending or self._running:
+            if not pending:
+                self._log("No pending files to process.")
             return
-        if self._running:
-            return
+
         self._running          = True
         self._cancel_requested = False
         self._start_btn.configure(
@@ -413,12 +404,11 @@ class _BaseApp:
                 self.after(0, row.set_status, "processing")
                 self._log(f"\n\u2500\u2500 [{idx+1}/{total}] {os.path.basename(row.file_path)}")
                 result = process_file(
-                    row.file_path, out_dir, png_tmp,
-                    style, bg_color, self._log,
+                    row.file_path, out_dir, png_tmp, style, bg_color,
+                    log_callback=self._log,
                     conflict_resolver=self._conflict_resolver,
                 )
-                status = result["status"]
-                self.after(0, row.set_status, status)
+                self.after(0, row.set_status, result["status"])
                 self.after(0, self._set_progress, idx + 1, total)
             else:
                 self._log("\n\u2705 All done!")
@@ -436,11 +426,10 @@ class _BaseApp:
         self._update_stats()
 
     def _finish(self):
-        self._running          = False
-        self._cancel_requested = False
+        self._running = self._cancel_requested = False
         self._start_btn.configure(
             state="normal", text="\u25b6  Start Processing",
-            fg_color=ACCENT, hover_color="#3d7ae0",
+            fg_color=ACCENT, hover_color=ACCENT_HOVER,
             command=self._start_processing)
 
     # ── Log ───────────────────────────────────────────────────────────────────
