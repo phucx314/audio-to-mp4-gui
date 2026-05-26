@@ -131,10 +131,13 @@ def generate_png(
     get_duration_fn: optional callable(path) -> str | None
     """
     try:
-        from icon_map import icon_map, description_map
+        from core.icon_store import get_merged_maps
+        icon_map, description_map = get_merged_maps()
     except ImportError:
-        icon_map = {}
-        description_map = {}
+        try:
+            from icon_map import icon_map, description_map  # type: ignore
+        except ImportError:
+            icon_map, description_map = {}, {}
 
     name   = os.path.basename(file_path)
     ext    = os.path.splitext(name)[1].lower()
@@ -198,23 +201,21 @@ def generate_png(
         draw.text((dot[0]+15, dot[1]-12), "REC", font=date_font, fill="grey")
 
     # ── Paste file-type icon ──────────────────────────────────────────────────
-    icon_file = icon_map.get(ext)
-    if icon_file:
-        ipath = asset_path(icon_file)
-        if os.path.exists(ipath):
-            icon   = Image.open(ipath).resize((64, 64))
-            icon_y = 480 - 25 - 64
-            img.paste(icon, (25, icon_y), icon)
+    icon_path = icon_map.get(ext)
+    if icon_path and os.path.exists(icon_path):
+        icon   = Image.open(icon_path).convert("RGBA").resize((64, 64), Image.LANCZOS)
+        icon_y = 480 - 25 - 64
+        img.paste(icon, (25, icon_y), icon)
 
-            desc      = description_map.get(ext, "Audio File")
-            tf        = _font(title_path, 16)
-            max_w     = 480 - (25 + 64 + 15) - 25
-            desc_lines = wrap_text(desc, tf, max_w, draw)
-            sy = icon_y + 32 - (tf.size * len(desc_lines)) // 2 - 8
-            tx = 25 + 64 + 15
-            for dl in desc_lines:
-                draw_text(img, draw, (tx, sy), dl, tf, "white")
-                sy += tf.size + 5
+        desc      = description_map.get(ext, "Unknown File Type")
+        tf        = _font(title_path, 16)
+        max_w     = 480 - (25 + 64 + 15) - 25
+        desc_lines = wrap_text(desc, tf, max_w, draw)
+        sy = icon_y + 32 - (tf.size * len(desc_lines)) // 2 - 8
+        tx = 25 + 64 + 15
+        for dl in desc_lines:
+            draw_text(img, draw, (tx, sy), dl, tf, "white")
+            sy += tf.size + 5
 
     out = os.path.join(output_dir, os.path.splitext(name)[0] + ".png")
     img.save(out)
