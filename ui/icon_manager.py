@@ -80,7 +80,7 @@ class IconManagerDialog(ctk.CTkToplevel):
         self.configure(fg_color=BG_MAIN)
         self._all_entries: list[dict] = []
         self._row_widgets: list[dict] = []
-        self._scroll_bindings: list[str] = []
+        self._pending_icons: list = []
         self.withdraw()
         self.after(10, self._deferred_init)
 
@@ -100,15 +100,36 @@ class IconManagerDialog(ctk.CTkToplevel):
             pass
 
     def destroy(self):
-        # Unbind scroll events to prevent errors after close
-        for binding_id in self._scroll_bindings:
-            try:
-                self.unbind_all(binding_id)
-            except Exception:
-                pass
-        self._scroll_bindings.clear()
+        # Unbind global scroll events if we set them
+        self._unbind_scroll()
         IconManagerDialog._instance = None
         super().destroy()
+
+    def _bind_scroll(self, _event=None):
+        """Bind global scroll so touchpad/mouse works over any child widget."""
+        self.bind_all("<Button-4>", self._on_scroll_up)
+        self.bind_all("<Button-5>", self._on_scroll_down)
+        self.bind_all("<MouseWheel>", self._on_scroll_wheel)
+
+    def _unbind_scroll(self, _event=None):
+        try:
+            self.unbind_all("<Button-4>")
+            self.unbind_all("<Button-5>")
+            self.unbind_all("<MouseWheel>")
+        except Exception:
+            pass
+
+    def _on_scroll_up(self, e):
+        if self._canvas.winfo_exists():
+            self._canvas.yview_scroll(-3, "units")
+
+    def _on_scroll_down(self, e):
+        if self._canvas.winfo_exists():
+            self._canvas.yview_scroll(3, "units")
+
+    def _on_scroll_wheel(self, e):
+        if self._canvas.winfo_exists():
+            self._canvas.yview_scroll(int(-1 * e.delta / 120), "units")
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -191,24 +212,9 @@ class IconManagerDialog(ctk.CTkToplevel):
         self._canvas.bind("<Configure>",
             lambda e: self._canvas.itemconfig(self._list_win, width=e.width))
 
-        # Mouse-wheel scroll — bind to canvas only, not globally
-        def _scroll_up(e):
-            if self._canvas.winfo_exists():
-                self._canvas.yview_scroll(-2, "units")
-        def _scroll_down(e):
-            if self._canvas.winfo_exists():
-                self._canvas.yview_scroll(2, "units")
-        def _scroll_wheel(e):
-            if self._canvas.winfo_exists():
-                self._canvas.yview_scroll(int(-1 * e.delta / 120), "units")
-
-        self._canvas.bind("<Button-4>", _scroll_up)
-        self._canvas.bind("<Button-5>", _scroll_down)
-        self._canvas.bind("<MouseWheel>", _scroll_wheel)
-        # Also bind on the inner frame so scrolling works when mouse is over rows
-        self._list.bind("<Button-4>", _scroll_up)
-        self._list.bind("<Button-5>", _scroll_down)
-        self._list.bind("<MouseWheel>", _scroll_wheel)
+        # Scroll via Enter/Leave — works with touchpad + mouse
+        self._canvas.bind("<Enter>", self._bind_scroll)
+        self._canvas.bind("<Leave>", self._unbind_scroll)
 
         # Column weights
         self._list.columnconfigure(0, minsize=48)
@@ -241,6 +247,7 @@ class IconManagerDialog(ctk.CTkToplevel):
         for w in self._list.winfo_children():
             w.destroy()
         self._row_widgets.clear()
+        self._pending_icons = []  # for lazy loading
 
         for row_idx, entry in enumerate(entries):
             bg = BG_CARD if row_idx % 2 == 0 else BG_MAIN
@@ -253,28 +260,37 @@ class IconManagerDialog(ctk.CTkToplevel):
                  + (f"  ·  {total - shown} filtered" if shown < total else "")
         )
 
+        # Start lazy thumbnail loading
+        if self._pending_icons:
+            self.after(10, self._load_icons_batch)
+
+    def _load_icons_batch(self):
+        """Load a batch of thumbnails to keep UI responsive."""
+        batch = self._pending_icons[:8]
+        self._pending_icons = self._pending_icons[8:]
+        for lbl, icon_path in batch:
+            try:
+                img = _ctk_icon(icon_path, 28)
+                if img and lbl.winfo_exists():
+                    lbl.configure(image=img, text="")
+            except Exception:
+                pass
+        if self._pending_icons:
+            self.after(5, self._load_icons_batch)
+
     def _build_row(self, row_idx: int, entry: dict, bg: str):
         frame = ctk.CTkFrame(self._list, fg_color=bg, corner_radius=0, height=40)
         frame.grid(row=row_idx, column=0, columnspan=5, sticky="ew", pady=1)
         frame.grid_propagate(False)
         frame.columnconfigure(2, weight=1)
 
-        # Bind scroll events to row frame so scrolling works when hovering rows
-        def _scroll_up(e):
-            if self._canvas.winfo_exists():
-                self._canvas.yview_scroll(-2, "units")
-        def _scroll_down(e):
-            if self._canvas.winfo_exists():
-                self._canvas.yview_scroll(2, "units")
-        frame.bind("<Button-4>", _scroll_up)
-        frame.bind("<Button-5>", _scroll_down)
-
-        # Icon thumbnail
-        img = _ctk_icon(entry["icon_path"], 28)
-        icon_lbl = ctk.CTkLabel(frame, text="" if img else "?",
-                                 image=img, width=48, fg_color="transparent",
+        # Icon placeholder — actual image loaded lazily
+        icon_lbl = ctk.CTkLabel(frame, text=".",
+                                 width=48, fg_color="transparent",
+                                 text_color=TEXT_DIM,
                                  anchor="center")
         icon_lbl.grid(row=0, column=0, padx=(8, 0))
+        self._pending_icons.append((icon_lbl, entry["icon_path"]))
 
         # Extension
         ctk.CTkLabel(frame, text=entry["ext"],

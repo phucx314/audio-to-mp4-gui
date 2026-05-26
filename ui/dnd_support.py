@@ -18,6 +18,7 @@ try:
     _files_const = _tkdnd.DND_FILES
 
     _probe = _cls.Tk()
+    _probe.withdraw()  # hide immediately — prevents blank flash on startup
     try:
         _probe.tk.call("package", "require", "tkdnd")
         DND_AVAILABLE = True

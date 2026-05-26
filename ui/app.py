@@ -226,10 +226,12 @@ class _BaseApp:
         out_row = ctk.CTkFrame(parent, fg_color="transparent")
         out_row.grid(row=r, column=0, sticky="ew", padx=18, pady=(4, 2)); r += 1
         out_row.columnconfigure(0, weight=1)
-        ctk.CTkEntry(out_row, textvariable=self._output_dir, font=("Inter", 11)
+        ctk.CTkEntry(out_row, textvariable=self._output_dir, font=("Inter", 11),
+                     fg_color=BG_DROP, border_color="#2e2e50", border_width=1,
                      ).grid(row=0, column=0, sticky="ew")
         ctk.CTkButton(out_row, text="\U0001f4c1", width=36,
                       fg_color=BG_MAIN, hover_color="#2a2a3e",
+                      anchor="center",
                       command=self._pick_output_dir
                       ).grid(row=0, column=1, padx=(6, 0))
 
@@ -243,6 +245,7 @@ class _BaseApp:
             fg_color="transparent", border_width=1,
             border_color="#444466", text_color=TEXT_DIM,
             hover_color="#2a2a3e", font=("Inter", 12),
+            anchor="center",
             command=self._open_icon_manager,
         ).grid(row=r, column=0, sticky="ew", padx=18, pady=(0, 6)); r += 1
 
