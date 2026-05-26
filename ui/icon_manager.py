@@ -28,7 +28,7 @@ from core.icon_store import (
 from ui.theme import ACCENT, ACCENT2, BG_CARD, BG_MAIN, BG_DROP, TEXT_DIM, STATUS_COLORS
 
 
-def _fix_default_root(toplevel_widget):
+def _fix_default_root(widget):
     """Python 3.14 compat: ensure tkinter._default_root is set.
 
     customtkinter 5.2.2 CTkFont() calls tkinter._get_default_root()
@@ -36,7 +36,7 @@ def _fix_default_root(toplevel_widget):
     CTkToplevel doesn't set it, so we do it manually.
     """
     if tk._default_root is None:
-        tk._default_root = toplevel_widget.winfo_toplevel()
+        tk._default_root = widget.winfo_toplevel()
 
 
 # ── Thumbnail cache (CTkImage) ────────────────────────────────────────────────
@@ -58,6 +58,20 @@ def _ctk_icon(path: str, size: int = 32) -> ctk.CTkImage | None:
 class IconManagerDialog(ctk.CTkToplevel):
     """Modal-like dialog for browsing and managing icon mappings."""
 
+    # Class-level ref to prevent multiple instances
+    _instance = None
+
+    @classmethod
+    def open(cls, master):
+        """Open the dialog, or focus the existing one."""
+        if cls._instance is not None and cls._instance.winfo_exists():
+            cls._instance.lift()
+            cls._instance.focus_force()
+            return cls._instance
+        dlg = cls(master)
+        cls._instance = dlg
+        return dlg
+
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
         self.title("🗂  Icon Manager")
@@ -65,9 +79,10 @@ class IconManagerDialog(ctk.CTkToplevel):
         self.minsize(680, 440)
         self.configure(fg_color=BG_MAIN)
         self._all_entries: list[dict] = []
-        self._row_widgets:  list[dict] = []
-        self.withdraw()  # hide until fully built
-        self.after(10, self._deferred_init)  # defer: Python 3.14 needs event loop tick
+        self._row_widgets: list[dict] = []
+        self._scroll_bindings: list[str] = []
+        self.withdraw()
+        self.after(10, self._deferred_init)
 
     def _deferred_init(self):
         _fix_default_root(self)
@@ -77,9 +92,23 @@ class IconManagerDialog(ctk.CTkToplevel):
         self.after(200, self._post_show)
 
     def _post_show(self):
-        self.lift(); self.focus_force()
-        try: self.grab_set()
-        except Exception: pass
+        self.lift()
+        self.focus_force()
+        try:
+            self.grab_set()
+        except Exception:
+            pass
+
+    def destroy(self):
+        # Unbind scroll events to prevent errors after close
+        for binding_id in self._scroll_bindings:
+            try:
+                self.unbind_all(binding_id)
+            except Exception:
+                pass
+        self._scroll_bindings.clear()
+        IconManagerDialog._instance = None
+        super().destroy()
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -90,7 +119,8 @@ class IconManagerDialog(ctk.CTkToplevel):
         hdr.pack_propagate(False)
 
         ctk.CTkLabel(hdr, text="🗂  Icon Manager",
-                     font=("Inter", 16, "bold"), text_color="white"
+                     font=("Inter", 16, "bold"), text_color="white",
+                     anchor="w"
                      ).pack(side="left", padx=16)
 
         btn_frame = ctk.CTkFrame(hdr, fg_color="transparent")
@@ -98,12 +128,14 @@ class IconManagerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(btn_frame, text="📦 Install Pack", width=130, height=32,
                       fg_color=ACCENT2, hover_color="#6d28d9",
-                      font=("Inter", 12), command=self._install_pack
+                      font=("Inter", 12), anchor="center",
+                      command=self._install_pack
                       ).pack(side="right", padx=(6, 0))
 
         ctk.CTkButton(btn_frame, text="➕ Add New", width=110, height=32,
                       fg_color=ACCENT, hover_color="#3d7ae0",
-                      font=("Inter", 12), command=self._add_new
+                      font=("Inter", 12), anchor="center",
+                      command=self._add_new
                       ).pack(side="right")
 
         # Search bar
@@ -122,18 +154,22 @@ class IconManagerDialog(ctk.CTkToplevel):
         col_hdr = ctk.CTkFrame(self, fg_color="#1a1a2e", corner_radius=0, height=30)
         col_hdr.pack(fill="x")
         col_hdr.pack_propagate(False)
-        for text, anchor, padx in [
-            ("Icon", "center", (12, 0)),
-            ("Extension", "w", (6, 0)),
-            ("Description", "w", (6, 0)),
-            ("Source", "center", (6, 12)),
-        ]:
-            ctk.CTkLabel(col_hdr, text=text, font=("Inter", 11, "bold"),
-                         text_color="#555577", anchor=anchor,
-                         ).pack(side="left", padx=padx)
 
-        # Scrollable list — use plain tk.Canvas to avoid CTkFont init issues
-        # with customtkinter 5.2.2 on Python 3.14
+        col_hdr.columnconfigure(0, minsize=48)
+        col_hdr.columnconfigure(1, minsize=80)
+        col_hdr.columnconfigure(2, weight=1)
+        col_hdr.columnconfigure(3, minsize=90)
+        col_hdr.columnconfigure(4, minsize=40)
+
+        for col, (text, anchor_) in enumerate([
+            ("Icon", "center"), ("Ext", "w"),
+            ("Description", "w"), ("Source", "center"), ("", "center"),
+        ]):
+            ctk.CTkLabel(col_hdr, text=text, font=("Inter", 11, "bold"),
+                         text_color="#555577", anchor=anchor_,
+                         ).grid(row=0, column=col, sticky="ew", padx=6)
+
+        # Scrollable list — plain tk.Canvas to avoid CTkFont issues
         list_outer = ctk.CTkFrame(self, fg_color=BG_MAIN, corner_radius=0)
         list_outer.pack(fill="both", expand=True)
 
@@ -155,24 +191,36 @@ class IconManagerDialog(ctk.CTkToplevel):
         self._canvas.bind("<Configure>",
             lambda e: self._canvas.itemconfig(self._list_win, width=e.width))
 
-        # Mouse-wheel scroll (Linux Button-4/5, Win/Mac MouseWheel)
-        def _scroll(delta):
-            self._canvas.yview_scroll(delta, "units")
-        self._canvas.bind_all("<Button-4>",  lambda _: _scroll(-2))
-        self._canvas.bind_all("<Button-5>",  lambda _: _scroll(2))
-        self._canvas.bind_all("<MouseWheel>",
-            lambda e: _scroll(int(-1 * e.delta / 120)))
+        # Mouse-wheel scroll — bind to canvas only, not globally
+        def _scroll_up(e):
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(-2, "units")
+        def _scroll_down(e):
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(2, "units")
+        def _scroll_wheel(e):
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(int(-1 * e.delta / 120), "units")
 
-        # Column weights on inner frame
+        self._canvas.bind("<Button-4>", _scroll_up)
+        self._canvas.bind("<Button-5>", _scroll_down)
+        self._canvas.bind("<MouseWheel>", _scroll_wheel)
+        # Also bind on the inner frame so scrolling works when mouse is over rows
+        self._list.bind("<Button-4>", _scroll_up)
+        self._list.bind("<Button-5>", _scroll_down)
+        self._list.bind("<MouseWheel>", _scroll_wheel)
+
+        # Column weights
         self._list.columnconfigure(0, minsize=48)
         self._list.columnconfigure(1, minsize=80)
         self._list.columnconfigure(2, weight=1)
-        self._list.columnconfigure(3, minsize=110)
+        self._list.columnconfigure(3, minsize=90)
         self._list.columnconfigure(4, minsize=40)
 
         # Status bar
         self._status = ctk.CTkLabel(self, text="", font=("Inter", 11),
-                                    text_color=TEXT_DIM, height=28)
+                                    text_color=TEXT_DIM, height=28,
+                                    anchor="w")
         self._status.pack(fill="x", padx=12)
 
     # ── Data loading / filtering ───────────────────────────────────────────────
@@ -211,10 +259,21 @@ class IconManagerDialog(ctk.CTkToplevel):
         frame.grid_propagate(False)
         frame.columnconfigure(2, weight=1)
 
+        # Bind scroll events to row frame so scrolling works when hovering rows
+        def _scroll_up(e):
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(-2, "units")
+        def _scroll_down(e):
+            if self._canvas.winfo_exists():
+                self._canvas.yview_scroll(2, "units")
+        frame.bind("<Button-4>", _scroll_up)
+        frame.bind("<Button-5>", _scroll_down)
+
         # Icon thumbnail
         img = _ctk_icon(entry["icon_path"], 28)
         icon_lbl = ctk.CTkLabel(frame, text="" if img else "?",
-                                 image=img, width=48, fg_color="transparent")
+                                 image=img, width=48, fg_color="transparent",
+                                 anchor="center")
         icon_lbl.grid(row=0, column=0, padx=(8, 0))
 
         # Extension
@@ -237,7 +296,7 @@ class IconManagerDialog(ctk.CTkToplevel):
                      font=("Inter", 10, "bold"),
                      text_color="white" if is_user else TEXT_DIM,
                      fg_color=badge_color, corner_radius=6,
-                     width=72, height=22,
+                     width=72, height=22, anchor="center",
                      ).grid(row=0, column=3, padx=8)
 
         # Delete button (user only)
@@ -246,6 +305,7 @@ class IconManagerDialog(ctk.CTkToplevel):
                 frame, text="🗑", width=28, height=28,
                 fg_color="transparent", text_color="#f87171",
                 hover_color="#2a1e1e", font=("Inter", 14),
+                anchor="center",
                 command=lambda e=entry["ext"]: self._delete_entry(e),
             ).grid(row=0, column=4, padx=(0, 8))
 
@@ -286,7 +346,7 @@ class _AddEntryDialog(ctk.CTkToplevel):
     def __init__(self, master, on_save=None, prefill_ext: str = "", **kw):
         super().__init__(master, **kw)
         self.title("➕ Add Icon Mapping")
-        self.geometry("400x360")
+        self.geometry("420x400")
         self.resizable(False, False)
         self.configure(fg_color=BG_CARD)
         self._on_save     = on_save
@@ -303,34 +363,42 @@ class _AddEntryDialog(ctk.CTkToplevel):
         self.after(150, lambda: (self.lift(), self.focus_force()))
 
     def _build(self, prefill_ext: str):
-        pad = {"padx": 20, "pady": (0, 10)}
-
+        # Title
         ctk.CTkLabel(self, text="➕ Add Icon Mapping",
-                     font=("Inter", 15, "bold"), text_color="white"
-                     ).pack(anchor="w", padx=20, pady=(18, 12))
+                     font=("Inter", 15, "bold"), text_color="white",
+                     anchor="w"
+                     ).pack(fill="x", padx=24, pady=(20, 16))
 
+        # Extension field
         ctk.CTkLabel(self, text="Extension (e.g. .xyz)",
-                     font=("Inter", 12), text_color=TEXT_DIM
-                     ).pack(anchor="w", padx=20)
+                     font=("Inter", 11), text_color=TEXT_DIM,
+                     anchor="w"
+                     ).pack(fill="x", padx=24)
         self._ext_var = ctk.StringVar(master=self, value=prefill_ext)
         ctk.CTkEntry(self, textvariable=self._ext_var, font=("Inter", 12),
-                     placeholder_text=".xyz"
-                     ).pack(fill="x", **pad)
+                     fg_color=BG_DROP, border_color="#2e2e50", border_width=1,
+                     placeholder_text=".xyz", height=36
+                     ).pack(fill="x", padx=24, pady=(4, 12))
 
+        # Description field
         ctk.CTkLabel(self, text="Description",
-                     font=("Inter", 12), text_color=TEXT_DIM
-                     ).pack(anchor="w", padx=20)
+                     font=("Inter", 11), text_color=TEXT_DIM,
+                     anchor="w"
+                     ).pack(fill="x", padx=24)
         self._desc_var = ctk.StringVar(master=self)
         ctk.CTkEntry(self, textvariable=self._desc_var, font=("Inter", 12),
-                     placeholder_text="My Custom Format"
-                     ).pack(fill="x", **pad)
+                     fg_color=BG_DROP, border_color="#2e2e50", border_width=1,
+                     placeholder_text="My Custom Format", height=36
+                     ).pack(fill="x", padx=24, pady=(4, 12))
 
+        # Icon picker
         ctk.CTkLabel(self, text="Icon Image",
-                     font=("Inter", 12), text_color=TEXT_DIM
-                     ).pack(anchor="w", padx=20)
+                     font=("Inter", 11), text_color=TEXT_DIM,
+                     anchor="w"
+                     ).pack(fill="x", padx=24)
 
         icon_row = ctk.CTkFrame(self, fg_color="transparent")
-        icon_row.pack(fill="x", padx=20, pady=(0, 4))
+        icon_row.pack(fill="x", padx=24, pady=(4, 4))
         icon_row.columnconfigure(0, weight=1)
 
         self._icon_lbl = ctk.CTkLabel(icon_row, text="No image selected",
@@ -338,28 +406,34 @@ class _AddEntryDialog(ctk.CTkToplevel):
                                        anchor="w")
         self._icon_lbl.grid(row=0, column=0, sticky="w")
 
-        ctk.CTkButton(icon_row, text="Browse…", width=80, height=30,
+        ctk.CTkButton(icon_row, text="Browse…", width=90, height=32,
                       fg_color=BG_MAIN, hover_color="#2a2a3e",
-                      font=("Inter", 11), command=self._pick_image
-                      ).grid(row=0, column=1, padx=(6, 0))
+                      border_width=1, border_color="#2e2e50",
+                      font=("Inter", 11), anchor="center",
+                      command=self._pick_image
+                      ).grid(row=0, column=1, padx=(8, 0))
 
         # Preview
         self._preview_lbl = ctk.CTkLabel(self, text="", image=None,
                                           fg_color=BG_MAIN, corner_radius=8,
                                           width=64, height=64)
-        self._preview_lbl.pack(pady=(0, 12))
+        self._preview_lbl.pack(pady=(8, 16))
 
-        # Buttons
+        # Buttons — centered row
         btn_row = ctk.CTkFrame(self, fg_color="transparent")
-        btn_row.pack(fill="x", padx=20, pady=(0, 18))
-        ctk.CTkButton(btn_row, text="Cancel", width=100, height=36,
+        btn_row.pack(fill="x", padx=24, pady=(0, 20))
+
+        ctk.CTkButton(btn_row, text="Cancel", width=120, height=38,
                       fg_color="transparent", border_width=1,
                       border_color="#444466", text_color=TEXT_DIM,
+                      font=("Inter", 12), anchor="center",
                       command=self.destroy
                       ).pack(side="left")
-        ctk.CTkButton(btn_row, text="Save", width=100, height=36,
+
+        ctk.CTkButton(btn_row, text="Save", width=120, height=38,
                       fg_color=ACCENT, hover_color="#3d7ae0",
-                      font=("Inter", 12, "bold"), command=self._save
+                      font=("Inter", 12, "bold"), anchor="center",
+                      command=self._save
                       ).pack(side="right")
 
     def _pick_image(self):
@@ -428,8 +502,9 @@ class _InstallPackDialog(ctk.CTkToplevel):
         override = preview.get("override", [])
 
         ctk.CTkLabel(self, text="📦 Install Icon Pack",
-                     font=("Inter", 15, "bold"), text_color="white"
-                     ).pack(anchor="w", padx=20, pady=(18, 4))
+                     font=("Inter", 15, "bold"), text_color="white",
+                     anchor="w"
+                     ).pack(fill="x", padx=20, pady=(18, 4))
 
         # Manifest info
         info = ctk.CTkFrame(self, fg_color=BG_MAIN, corner_radius=10)
@@ -453,7 +528,8 @@ class _InstallPackDialog(ctk.CTkToplevel):
         def _badge(parent, text, color):
             ctk.CTkLabel(parent, text=text, font=("Inter", 11),
                          fg_color=color, corner_radius=6,
-                         text_color="white", padx=8, pady=2
+                         text_color="white", padx=8, pady=2,
+                         anchor="center"
                          ).pack(side="left", padx=(0, 8))
 
         summary = ctk.CTkFrame(self, fg_color="transparent")
@@ -480,11 +556,13 @@ class _InstallPackDialog(ctk.CTkToplevel):
         ctk.CTkButton(btn_row, text="Cancel", width=100, height=36,
                       fg_color="transparent", border_width=1,
                       border_color="#444466", text_color=TEXT_DIM,
+                      font=("Inter", 12), anchor="center",
                       command=self.destroy
                       ).pack(side="left")
         ctk.CTkButton(btn_row, text="Install", width=100, height=36,
                       fg_color=ACCENT2, hover_color="#6d28d9",
-                      font=("Inter", 12, "bold"), command=self._do_install
+                      font=("Inter", 12, "bold"), anchor="center",
+                      command=self._do_install
                       ).pack(side="right")
 
     def _do_install(self):

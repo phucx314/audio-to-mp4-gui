@@ -33,6 +33,11 @@ class _BaseApp:
     # ── Initialisation ────────────────────────────────────────────────────────
 
     def _init_app(self):
+        # Python 3.14 compat: ensure this window is the default root.
+        # DnD probe may have cleared it; TkinterDnD.Tk doesn't set it.
+        import tkinter as _tk
+        if _tk._default_root is None:
+            _tk._default_root = self
         self.title(APP_TITLE)
         self.geometry(f"{WIN_W}x{WIN_H}")
         self.minsize(WIN_MIN_W, WIN_MIN_H)
@@ -437,7 +442,7 @@ class _BaseApp:
         else:                     subprocess.Popen(["xdg-open", path])
 
     def _open_icon_manager(self):
-        IconManagerDialog(self)
+        IconManagerDialog.open(self)
 
     # ── Processing ────────────────────────────────────────────────────────────
 
