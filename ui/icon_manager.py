@@ -205,12 +205,12 @@ class IconManagerDialog(ctk.CTkToplevel):
 
     def _on_canvas_resize(self, e):
         """Recalculate grid columns when canvas width changes."""
-        self._canvas.itemconfig(self._grid_win, width=e.width)
         if hasattr(self, '_resize_job') and self._resize_job:
             self.after_cancel(self._resize_job)
-        self._resize_job = self.after(50, lambda: self._do_resize(e.width))
+        self._resize_job = self.after(100, lambda: self._do_resize(e.width))
 
     def _do_resize(self, width):
+        self._canvas.itemconfig(self._grid_win, width=width)
         new_cols = max(2, (width - CARD_PAD) // (CARD_W + CARD_PAD))
         if new_cols != self._n_cols:
             self._n_cols = new_cols
