@@ -181,7 +181,7 @@ class IconManagerDialog(ctk.CTkToplevel):
 
         # ── Scrollable grid area ──────────────────────────────────────────────
         self._canvas = tk.Canvas(self, bg=BG_MAIN, highlightthickness=0, bd=0)
-        _sb = tk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        _sb = ctk.CTkScrollbar(self, orientation="vertical", command=self._canvas.yview)
         self._grid_frame = tk.Frame(self._canvas, bg=BG_MAIN)
         self._grid_win = self._canvas.create_window(
             (0, 0), window=self._grid_frame, anchor="nw"
@@ -218,6 +218,10 @@ class IconManagerDialog(ctk.CTkToplevel):
 
     def _repack_grid(self):
         """Update grid positions of existing cards without destroying them."""
+        # Ensure all available columns expand to fill any remaining horizontal space
+        for i in range(self._n_cols):
+            self._grid_frame.columnconfigure(i, weight=1)
+
         for idx, w in enumerate(self._grid_frame.winfo_children()):
             row = idx // self._n_cols
             col = idx % self._n_cols
@@ -291,7 +295,7 @@ class IconManagerDialog(ctk.CTkToplevel):
         card.grid_propagate(False)
         card.pack_propagate(False)
 
-        # Configure grid column weights on the parent frame
+        # Configure grid column weights on the parent frame (also handled in _repack_grid)
         self._grid_frame.columnconfigure(col, weight=1)
 
         # Icon placeholder — loaded lazily
