@@ -28,6 +28,17 @@ from core.icon_store import (
 from ui.theme import ACCENT, ACCENT2, BG_CARD, BG_MAIN, BG_DROP, TEXT_DIM, STATUS_COLORS
 
 
+def _fix_default_root(toplevel_widget):
+    """Python 3.14 compat: ensure tkinter._default_root is set.
+
+    customtkinter 5.2.2 CTkFont() calls tkinter._get_default_root()
+    which raises RuntimeError on Python 3.14 if _default_root is None.
+    CTkToplevel doesn't set it, so we do it manually.
+    """
+    if tk._default_root is None:
+        tk._default_root = toplevel_widget.winfo_toplevel()
+
+
 # ── Thumbnail cache (CTkImage) ────────────────────────────────────────────────
 
 _img_cache: dict[str, ctk.CTkImage] = {}
@@ -59,6 +70,7 @@ class IconManagerDialog(ctk.CTkToplevel):
         self.after(10, self._deferred_init)  # defer: Python 3.14 needs event loop tick
 
     def _deferred_init(self):
+        _fix_default_root(self)
         self._build_ui()
         self._load_entries()
         self.deiconify()
@@ -285,6 +297,7 @@ class _AddEntryDialog(ctk.CTkToplevel):
         self.after(10, self._deferred_init)
 
     def _deferred_init(self):
+        _fix_default_root(self)
         self._build(self._prefill_ext)
         self.deiconify()
         self.after(150, lambda: (self.lift(), self.focus_force()))
@@ -404,6 +417,7 @@ class _InstallPackDialog(ctk.CTkToplevel):
         self.after(10, self._deferred_init)
 
     def _deferred_init(self):
+        _fix_default_root(self)
         self._build(self._preview)
         self.deiconify()
         self.after(150, lambda: (self.lift(), self.focus_force()))

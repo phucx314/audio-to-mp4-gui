@@ -5,6 +5,7 @@ ui/widgets.py — Reusable CTk widgets: FileRow, ConflictDialog, UnknownFileDial
 import os
 import time
 import threading
+import tkinter as tk
 
 import customtkinter as ctk
 
@@ -218,6 +219,9 @@ class UnknownFileDialog(ctk.CTkToplevel):
         self.after(10, self._deferred_init)
 
     def _deferred_init(self):
+        # Python 3.14 compat: ensure _default_root is set
+        if tk._default_root is None:
+            tk._default_root = self.winfo_toplevel()
         ext = self._ext
 
         # Header
