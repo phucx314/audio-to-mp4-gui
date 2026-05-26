@@ -211,7 +211,7 @@ class IconManagerDialog(ctk.CTkToplevel):
 
     def _do_resize(self, width):
         self._canvas.itemconfig(self._grid_win, width=width)
-        new_cols = max(2, (width - CARD_PAD) // (CARD_W + CARD_PAD))
+        new_cols = max(2, width // (CARD_W + CARD_PAD))
         if new_cols != self._n_cols:
             self._n_cols = new_cols
             self._repack_grid()
