@@ -92,7 +92,7 @@ class IconManagerDialog(ctk.CTkToplevel):
         search_frame = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=0, height=44)
         search_frame.pack(fill="x")
         search_frame.pack_propagate(False)
-        self._search_var = ctk.StringVar()
+        self._search_var = ctk.StringVar(master=self)
         self._search_var.trace_add("write", lambda *_: self._filter())
         ctk.CTkEntry(search_frame, textvariable=self._search_var,
                      placeholder_text="🔍  Search by extension or description...",
@@ -260,7 +260,7 @@ class _AddEntryDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="Extension (e.g. .xyz)",
                      font=("Inter", 12), text_color=TEXT_DIM
                      ).pack(anchor="w", padx=20)
-        self._ext_var = ctk.StringVar(value=prefill_ext)
+        self._ext_var = ctk.StringVar(master=self, value=prefill_ext)
         ctk.CTkEntry(self, textvariable=self._ext_var, font=("Inter", 12),
                      placeholder_text=".xyz"
                      ).pack(fill="x", **pad)
@@ -268,7 +268,7 @@ class _AddEntryDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="Description",
                      font=("Inter", 12), text_color=TEXT_DIM
                      ).pack(anchor="w", padx=20)
-        self._desc_var = ctk.StringVar()
+        self._desc_var = ctk.StringVar(master=self)
         ctk.CTkEntry(self, textvariable=self._desc_var, font=("Inter", 12),
                      placeholder_text="My Custom Format"
                      ).pack(fill="x", **pad)
