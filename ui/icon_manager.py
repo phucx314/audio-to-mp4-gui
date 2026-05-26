@@ -179,6 +179,11 @@ class IconManagerDialog(ctk.CTkToplevel):
                      border_color="#2e2e50", border_width=1,
                      ).pack(fill="x", padx=12, pady=8)
 
+        # ── Status bar ────────────────────────────────────────────────────────
+        self._status = ctk.CTkLabel(self, text="", font=("Inter", 11),
+                                    text_color=TEXT_DIM, height=28, anchor="w")
+        self._status.pack(fill="x", padx=12, side="bottom")
+
         # ── Scrollable grid area ──────────────────────────────────────────────
         self._canvas = tk.Canvas(self, bg=BG_MAIN, highlightthickness=0, bd=0)
         _sb = ctk.CTkScrollbar(self, orientation="vertical", command=self._canvas.yview)
@@ -198,10 +203,6 @@ class IconManagerDialog(ctk.CTkToplevel):
         self._canvas.bind("<Enter>", self._bind_scroll)
         self._canvas.bind("<Leave>", self._unbind_scroll)
 
-        # ── Status bar ────────────────────────────────────────────────────────
-        self._status = ctk.CTkLabel(self, text="", font=("Inter", 11),
-                                    text_color=TEXT_DIM, height=28, anchor="w")
-        self._status.pack(fill="x", padx=12, side="bottom")
 
     def _on_canvas_resize(self, e):
         """Recalculate grid columns when canvas width changes."""
