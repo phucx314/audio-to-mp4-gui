@@ -240,12 +240,11 @@ class _BaseApp:
                      ).grid(row=r, column=0, sticky="w", padx=18, pady=(0, 8)); r += 1
 
         ctk.CTkButton(
-            parent, text="🗂  Icon Manager",
+            parent, text="Manage Icons",
             height=34, corner_radius=8,
             fg_color="transparent", border_width=1,
             border_color="#444466", text_color=TEXT_DIM,
             hover_color="#2a2a3e", font=("Inter", 12),
-            anchor="center",
             command=self._open_icon_manager,
         ).grid(row=r, column=0, sticky="ew", padx=18, pady=(0, 6)); r += 1
 

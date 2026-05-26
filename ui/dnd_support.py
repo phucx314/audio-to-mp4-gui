@@ -6,32 +6,31 @@ is created. Exports DND_AVAILABLE, DND_FILES, and TkinterDnD so other
 ui modules can query them without triggering circular imports.
 """
 
+import importlib.util as _ilu
+
 DND_AVAILABLE: bool = False
 DND_FILES            = None   # tkinterdnd2.DND_FILES constant
 TkinterDnD           = None   # tkinterdnd2.TkinterDnD class
 
-try:
-    import tkinterdnd2 as _tkdnd
-    import tkinter as _tk_probe
+# Only attempt DnD if tkinterdnd2 package exists on disk.
+# We do NOT import it unless the Tcl/Tk 'tkdnd' package is also present,
+# because importing tkinterdnd2 can create phantom Tk windows on some
+# Python 3.14 setups.
+if _ilu.find_spec("tkinterdnd2") is not None:
+    import tkinter as _tk
 
-    _cls        = _tkdnd.TkinterDnD
-    _files_const = _tkdnd.DND_FILES
-
-    _probe = _cls.Tk()
-    _probe.withdraw()  # hide immediately — prevents blank flash on startup
+    _probe = _tk.Tk()
+    _probe.withdraw()
     try:
         _probe.tk.call("package", "require", "tkdnd")
+        # tkdnd Tcl package is available → safe to import tkinterdnd2
+        import tkinterdnd2 as _tkdnd
         DND_AVAILABLE = True
-        TkinterDnD    = _cls
-        DND_FILES     = _files_const
+        TkinterDnD    = _tkdnd.TkinterDnD
+        DND_FILES     = _tkdnd.DND_FILES
     except Exception:
         pass
     finally:
         _probe.destroy()
-        # Python 3.14: probe.destroy() clears _default_root.
-        # We explicitly set to None so _init_app knows to re-set it.
-        _tk_probe._default_root = None
-        del _probe, _tk_probe
-
-except Exception:
-    pass
+        _tk._default_root = None
+        del _probe
