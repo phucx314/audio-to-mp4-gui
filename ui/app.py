@@ -22,6 +22,7 @@ from ui.theme import (
     ACCENT, ACCENT_HOVER, BG_CARD, BG_MAIN, BG_DROP, TEXT_DIM,
 )
 from ui.widgets import FileRow, ConflictDialog
+from ui.icon_manager import IconManagerDialog
 import ui.dnd_support as dnd
 
 
@@ -229,7 +230,16 @@ class _BaseApp:
 
         ctk.CTkLabel(parent, text="Default: ~/Documents/Audio/output",
                      font=("Inter", 10), text_color="#555577"
-                     ).grid(row=r, column=0, sticky="w", padx=18, pady=(0, 14)); r += 1
+                     ).grid(row=r, column=0, sticky="w", padx=18, pady=(0, 8)); r += 1
+
+        ctk.CTkButton(
+            parent, text="🗂  Icon Manager",
+            height=34, corner_radius=8,
+            fg_color="transparent", border_width=1,
+            border_color="#444466", text_color=TEXT_DIM,
+            hover_color="#2a2a3e", font=("Inter", 12),
+            command=self._open_icon_manager,
+        ).grid(row=r, column=0, sticky="ew", padx=18, pady=(0, 6)); r += 1
 
         ctk.CTkFrame(parent, height=1, fg_color="#2e2e50"
                      ).grid(row=r, column=0, sticky="ew", padx=18, pady=8); r += 1
@@ -393,6 +403,9 @@ class _BaseApp:
         if   system == "Windows": os.startfile(path)
         elif system == "Darwin":  subprocess.Popen(["open", path])
         else:                     subprocess.Popen(["xdg-open", path])
+
+    def _open_icon_manager(self):
+        IconManagerDialog(self)
 
     # ── Processing ────────────────────────────────────────────────────────────
 
