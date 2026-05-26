@@ -83,6 +83,9 @@ class IconManagerDialog(ctk.CTkToplevel):
         self.configure(fg_color=BG_MAIN)
         self._all_entries: list[dict] = []
         self._pending_icons: list = []
+        self._entries_to_render: list = []
+        self._rendered_count: int = 0
+        self._render_job = None
         self._n_cols = 5
         self.withdraw()
         self.after(10, self._deferred_init)
@@ -103,6 +106,9 @@ class IconManagerDialog(ctk.CTkToplevel):
             pass
 
     def destroy(self):
+        if self._render_job:
+            self.after_cancel(self._render_job)
+            self._render_job = None
         self._unbind_scroll()
         IconManagerDialog._instance = None
         super().destroy()
@@ -222,14 +228,16 @@ class IconManagerDialog(ctk.CTkToplevel):
     # ── Grid rendering ────────────────────────────────────────────────────────
 
     def _render_grid(self, entries: list[dict]):
+        if self._render_job:
+            self.after_cancel(self._render_job)
+            self._render_job = None
+
         for w in self._grid_frame.winfo_children():
             w.destroy()
+        
         self._pending_icons = []
-
-        for idx, entry in enumerate(entries):
-            row = idx // self._n_cols
-            col = idx % self._n_cols
-            self._build_card(row, col, entry)
+        self._entries_to_render = entries.copy()
+        self._rendered_count = 0
 
         total = len(self._all_entries)
         shown = len(entries)
@@ -238,9 +246,23 @@ class IconManagerDialog(ctk.CTkToplevel):
                  + (f"  ·  {total - shown} filtered" if shown < total else "")
         )
 
-        # Lazy-load thumbnails
-        if self._pending_icons:
-            self.after(10, self._load_icons_batch)
+        self._render_batch()
+
+    def _render_batch(self):
+        """Build cards in small batches to prevent UI freezing."""
+        batch = self._entries_to_render[:12]
+        self._entries_to_render = self._entries_to_render[12:]
+
+        for entry in batch:
+            row = self._rendered_count // self._n_cols
+            col = self._rendered_count % self._n_cols
+            self._build_card(row, col, entry)
+            self._rendered_count += 1
+
+        if self._entries_to_render:
+            self._render_job = self.after(5, self._render_batch)
+        elif self._pending_icons:
+            self._load_icons_batch()
 
     def _build_card(self, row: int, col: int, entry: dict):
         """Build one icon card in the grid."""
