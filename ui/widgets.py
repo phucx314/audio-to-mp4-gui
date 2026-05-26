@@ -1,5 +1,5 @@
 """
-ui/widgets.py — Reusable CTk widgets: FileRow and ConflictDialog.
+ui/widgets.py — Reusable CTk widgets: FileRow, ConflictDialog, UnknownFileDialog.
 """
 
 import os
@@ -188,6 +188,81 @@ class ConflictDialog(ctk.CTkToplevel):
             self.grab_set()
         except Exception:
             pass
+
+    def _choose(self, action: str):
+        self._result_holder[0] = action
+        self._event.set()
+        self.destroy()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+class UnknownFileDialog(ctk.CTkToplevel):
+    """
+    Warning shown when adding a file whose extension has no icon/description mapping.
+    Blocks the caller via threading.Event until the user picks an action.
+    Returns one of: 'cancel' | 'add_anyway' | 'add_icon'
+    """
+
+    def __init__(self, master, ext: str,
+                 result_holder: list, event: threading.Event, **kw):
+        super().__init__(master, **kw)
+        self.title("Unknown File Type")
+        self.resizable(False, False)
+        self.configure(fg_color=BG_CARD)
+        self.withdraw()
+
+        self._result_holder = result_holder
+        self._event         = event
+
+        # Header
+        hdr = ctk.CTkFrame(self, fg_color="transparent")
+        hdr.pack(fill="x", padx=20, pady=(16, 4))
+        ctk.CTkLabel(hdr, text="⚠", font=("Segoe UI Emoji", 22),
+                     text_color="#f7c948").pack(side="left")
+        ctk.CTkLabel(hdr, text="  Unknown File Type",
+                     font=("Inter", 16, "bold"), text_color="white").pack(side="left")
+
+        ctk.CTkLabel(self, text=f"Extension  {ext}  has no icon or description.",
+                     font=("Inter", 12), text_color=ACCENT2,
+                     wraplength=440).pack(padx=20, anchor="w")
+
+        ctk.CTkFrame(self, height=1, fg_color="#2e2e50").pack(fill="x", padx=20, pady=10)
+
+        ctk.CTkLabel(
+            self,
+            text="The file will be processed normally, but the thumbnail\n"
+                 "will show \"Unknown File Type\" with no icon.",
+            font=("Inter", 11), text_color=TEXT_DIM, justify="left",
+        ).pack(padx=20, anchor="w", pady=(0, 14))
+
+        # Buttons
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=20, pady=(0, 18))
+
+        for text, color, hover, action in [
+            ("✕  Cancel",       "#2e2e50", "#3a3a60", "cancel"),
+            ("✔  Add Anyway",   BG_MAIN,   "#2a2a3e", "add_anyway"),
+            ("🗂  Add Icon",    ACCENT,    "#3d7ae0", "add_icon"),
+        ]:
+            ctk.CTkButton(
+                row, text=text, width=130, height=38,
+                fg_color=color, hover_color=hover,
+                border_width=1 if action == "add_anyway" else 0,
+                border_color="#444466",
+                text_color=TEXT_DIM if action in ("cancel", "add_anyway") else "white",
+                font=("Inter", 12, "bold") if action == "add_icon" else ("Inter", 12),
+                command=lambda a=action: self._choose(a),
+            ).pack(side="left", padx=(0, 8) if action != "add_icon" else 0)
+
+        self.protocol("WM_DELETE_WINDOW", lambda: self._choose("cancel"))
+        self.update_idletasks()
+        self.deiconify()
+        self.after(200, self._post_show)
+
+    def _post_show(self):
+        self.lift(); self.focus_force()
+        try: self.grab_set()
+        except Exception: pass
 
     def _choose(self, action: str):
         self._result_holder[0] = action

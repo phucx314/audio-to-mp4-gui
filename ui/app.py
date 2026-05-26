@@ -344,19 +344,51 @@ class _BaseApp:
     def _add_file(self, path: str):
         if not os.path.isfile(path):
             return
-            
+
         ext = os.path.splitext(path)[1].lower()
         if self._mode.get() == "Audio \u2192 MP4" and ext not in AUDIO_EXTENSIONS:
             self._log(f"Skipped (unsupported audio): {os.path.basename(path)}")
             return
-            
+
         if path in {r.file_path for r in self._rows}:
             return
+
+        # ── Unknown file type warning (Hide File mode only) ───────────────────
+        if self._mode.get() == "Hide File":
+            from core.icon_store import is_supported
+            if not is_supported(ext):
+                action = self._unknown_file_warning(ext)
+                if action == "cancel":
+                    return
+                if action == "add_icon":
+                    from ui.icon_manager import IconManagerDialog, _AddEntryDialog
+                    dlg = IconManagerDialog(self)
+                    self.after(300, lambda: _AddEntryDialog(dlg, prefill_ext=ext))
+                    return  # user can re-add after setting up icon
+                # "add_anyway" falls through
+
         row = FileRow(self._queue_frame, path, on_remove=self._remove_row)
         row.pack(fill="x", pady=3, padx=4)
         self._rows.append(row)
         row.after_idle(self._bind_scroll_recursive, row)
         self._update_stats()
+
+    def _unknown_file_warning(self, ext: str) -> str:
+        """
+        Show a warning dialog for unmapped extension.
+        Returns: 'cancel' | 'add_anyway' | 'add_icon'
+        """
+        import threading
+        event         = threading.Event()
+        result_holder = ["cancel"]
+
+        def _show():
+            from ui.widgets import UnknownFileDialog
+            UnknownFileDialog(self, ext, result_holder, event)
+
+        self.after(0, _show)
+        event.wait()
+        return result_holder[0]
 
     def _remove_row(self, row: FileRow):
         if self._running:
