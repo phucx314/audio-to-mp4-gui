@@ -10,6 +10,7 @@ Displays all mapped file-type icons (built-in + user), supports:
 
 import os
 import threading
+import tkinter as tk
 from tkinter import filedialog, messagebox
 from pathlib import Path
 
@@ -119,14 +120,43 @@ class IconManagerDialog(ctk.CTkToplevel):
                          text_color="#555577", anchor=anchor,
                          ).pack(side="left", padx=padx)
 
-        # Scrollable list
-        self._list = ctk.CTkScrollableFrame(self, fg_color=BG_MAIN, corner_radius=0)
-        self._list.pack(fill="both", expand=True)
-        self._list.columnconfigure(0, minsize=48)   # icon
-        self._list.columnconfigure(1, minsize=80)   # ext
-        self._list.columnconfigure(2, weight=1)     # description
-        self._list.columnconfigure(3, minsize=110)  # source
-        self._list.columnconfigure(4, minsize=40)   # delete btn
+        # Scrollable list — use plain tk.Canvas to avoid CTkFont init issues
+        # with customtkinter 5.2.2 on Python 3.14
+        list_outer = ctk.CTkFrame(self, fg_color=BG_MAIN, corner_radius=0)
+        list_outer.pack(fill="both", expand=True)
+
+        self._canvas = tk.Canvas(list_outer, bg=BG_MAIN,
+                                  highlightthickness=0, bd=0)
+        _sb = tk.Scrollbar(list_outer, orient="vertical",
+                           command=self._canvas.yview)
+        self._list = tk.Frame(self._canvas, bg=BG_MAIN)
+        self._list_win = self._canvas.create_window(
+            (0, 0), window=self._list, anchor="nw"
+        )
+        self._canvas.configure(yscrollcommand=_sb.set)
+        _sb.pack(side="right", fill="y")
+        self._canvas.pack(side="left", fill="both", expand=True)
+
+        self._list.bind("<Configure>",
+            lambda e: self._canvas.configure(
+                scrollregion=self._canvas.bbox("all")))
+        self._canvas.bind("<Configure>",
+            lambda e: self._canvas.itemconfig(self._list_win, width=e.width))
+
+        # Mouse-wheel scroll (Linux Button-4/5, Win/Mac MouseWheel)
+        def _scroll(delta):
+            self._canvas.yview_scroll(delta, "units")
+        self._canvas.bind_all("<Button-4>",  lambda _: _scroll(-2))
+        self._canvas.bind_all("<Button-5>",  lambda _: _scroll(2))
+        self._canvas.bind_all("<MouseWheel>",
+            lambda e: _scroll(int(-1 * e.delta / 120)))
+
+        # Column weights on inner frame
+        self._list.columnconfigure(0, minsize=48)
+        self._list.columnconfigure(1, minsize=80)
+        self._list.columnconfigure(2, weight=1)
+        self._list.columnconfigure(3, minsize=110)
+        self._list.columnconfigure(4, minsize=40)
 
         # Status bar
         self._status = ctk.CTkLabel(self, text="", font=("Inter", 11),
@@ -148,7 +178,6 @@ class IconManagerDialog(ctk.CTkToplevel):
         self._render_rows(visible)
 
     def _render_rows(self, entries: list[dict]):
-        # Destroy old rows
         for w in self._list.winfo_children():
             w.destroy()
         self._row_widgets.clear()
