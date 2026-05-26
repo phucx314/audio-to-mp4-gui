@@ -213,6 +213,12 @@ class UnknownFileDialog(ctk.CTkToplevel):
 
         self._result_holder = result_holder
         self._event         = event
+        self._ext           = ext
+        # Defer widget creation — Python 3.14 needs one event loop tick first
+        self.after(10, self._deferred_init)
+
+    def _deferred_init(self):
+        ext = self._ext
 
         # Header
         hdr = ctk.CTkFrame(self, fg_color="transparent")
@@ -258,6 +264,16 @@ class UnknownFileDialog(ctk.CTkToplevel):
         self.update_idletasks()
         self.deiconify()
         self.after(200, self._post_show)
+
+    def _post_show(self):
+        self.lift(); self.focus_force()
+        try: self.grab_set()
+        except Exception: pass
+
+    def _choose(self, action: str):
+        self._result_holder[0] = action
+        self._event.set()
+        self.destroy()
 
     def _post_show(self):
         self.lift(); self.focus_force()

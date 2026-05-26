@@ -54,8 +54,13 @@ class IconManagerDialog(ctk.CTkToplevel):
         self.configure(fg_color=BG_MAIN)
         self._all_entries: list[dict] = []
         self._row_widgets:  list[dict] = []
+        self.withdraw()  # hide until fully built
+        self.after(10, self._deferred_init)  # defer: Python 3.14 needs event loop tick
+
+    def _deferred_init(self):
         self._build_ui()
         self._load_entries()
+        self.deiconify()
         self.after(200, self._post_show)
 
     def _post_show(self):
@@ -246,8 +251,13 @@ class _AddEntryDialog(ctk.CTkToplevel):
         self._on_save     = on_save
         self._img_path    = ""
         self._preview_img = None
+        self._prefill_ext = prefill_ext
+        self.withdraw()
+        self.after(10, self._deferred_init)
 
-        self._build(prefill_ext)
+    def _deferred_init(self):
+        self._build(self._prefill_ext)
+        self.deiconify()
         self.after(150, lambda: (self.lift(), self.focus_force()))
 
     def _build(self, prefill_ext: str):
@@ -358,9 +368,15 @@ class _InstallPackDialog(ctk.CTkToplevel):
         self.geometry("460x380")
         self.resizable(False, False)
         self.configure(fg_color=BG_CARD)
-        self._pack_path = pack_path
+        self._pack_path  = pack_path
         self._on_install = on_install
-        self._build(preview)
+        self._preview    = preview
+        self.withdraw()
+        self.after(10, self._deferred_init)
+
+    def _deferred_init(self):
+        self._build(self._preview)
+        self.deiconify()
         self.after(150, lambda: (self.lift(), self.focus_force()))
 
     def _build(self, preview: dict):
