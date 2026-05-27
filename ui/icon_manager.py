@@ -100,12 +100,9 @@ class IconManagerDialog(ctk.CTkToplevel):
     def _post_show(self):
         self.lift()
         self.focus_force()
-        # Bind scroll immediately so touchpad works without needing to hover-enter first
+        self._canvas.focus_set()   # give canvas focus so scroll events land here
         self._bind_scroll()
-        try:
-            self.grab_set()
-        except Exception:
-            pass
+        # NOTE: grab_set() blocks scroll events before canvas gets focus, skip it
 
     def destroy(self):
         if self._render_job:
