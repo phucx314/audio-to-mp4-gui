@@ -18,18 +18,16 @@ icon_map = {
     ".blend1": "icons/blend1.png",
     ".c": "icons/c.png",
     ".cdr": "icons/cdr.png",
-    ".chm": "icons/chm.png",
     ".cpp": "icons/cpp.png",
     ".cs": "icons/cs.png",
     ".css": "icons/css.png",
-    ".csv": "icons/csv.png",
     ".dart": "icons/dart.png",
     ".db": "icons/db.png",
-    ".doc": "icons/doc.png",
-    ".docx": "icons/docx.png",
+    # ".doc": "icons/doc.png",     # removed for test_pack demo
+    # ".docx": "icons/docx.png",   # removed for test_pack demo
     ".drawio": "icons/drawio.png",
     ".ejs": "icons/ejs.png",
-    ".epub": "icons/epub.png",
+    # ".epub": "icons/epub.png",   # removed for test_pack demo
     ".exe": "icons/exe.png",
     ".flac": "icons/flac.png",
     ".flp": "icons/flp.png",
@@ -52,7 +50,7 @@ icon_map = {
     ".mcworld": "icons/mcworld.png",
     ".mcpack": "icons/mcpack.png",
     ".mhtml": "icons/mhtml.png",
-    ".md": "icons/md.png",
+    # ".md": "icons/md.png",       # removed for test_pack demo
     ".mdf": "icons/mdf.png",
     ".mid": "icons/mid.png",
     ".mp3": "icons/mp3.png",
@@ -60,19 +58,19 @@ icon_map = {
     ".msi": "icons/msi.png",
     ".mup": "icons/mup.png",
     ".mwb": "icons/mwb.png",
-    ".ods": "icons/ods.png",
-    ".odt": "icons/odt.png",
+    # ".ods": "icons/ods.png",     # removed for test_pack demo
+    # ".odt": "icons/odt.png",     # removed for test_pack demo
     ".ogg": "icons/ogg.png",
     ".otf": "icons/otf.png",
     ".pas": "icons/pas.png",
-    ".pdf": "icons/pdf.png",
+    # ".pdf": "icons/pdf.png",     # removed for test_pack demo
     ".pka": "icons/pka.png",
     ".pkt": "icons/pkt.png",
-    ".pps": "icons/pps.png",
-    ".ppsx": "icons/ppsx.png",
-    ".ppt": "icons/ppt.png",
-    ".pptm": "icons/pptm.png",
-    ".pptx": "icons/pptx.png",
+    # ".pps": "icons/pps.png",     # removed for test_pack demo
+    # ".ppsx": "icons/ppsx.png",   # removed for test_pack demo
+    # ".ppt": "icons/ppt.png",     # removed for test_pack demo
+    # ".pptm": "icons/pptm.png",   # removed for test_pack demo
+    # ".pptx": "icons/pptx.png",   # removed for test_pack demo
     ".prproj": "icons/prproj.png",
     ".ps1": "icons/ps1.png",
     ".psd": "icons/psd.png",
@@ -81,7 +79,7 @@ icon_map = {
     ".reg": "icons/reg.png",
     ".rmskin": "icons/rmskin.png",
     ".rpm": "icons/rpm.png",
-    ".rtf": "icons/rtf.png",
+    # ".rtf": "icons/rtf.png",     # removed for test_pack demo
     ".sfd": "icons/sfd.png",
     ".sh": "icons/sh.png", ####
     ".sql": "icons/sql.png",
@@ -96,7 +94,7 @@ icon_map = {
     ".test": "icons/test.png",
     ".tmp": "icons/tmp.png",
     ".ttf": "icons/ttf.png",
-    ".txt": "icons/txt.png",
+    # ".txt": "icons/txt.png",     # removed for test_pack demo
     ".uhtml": "icons/uhtml.png",
     ".url": "icons/url.png",
     ".vcf": "icons/vcf.png",
@@ -106,9 +104,9 @@ icon_map = {
     ".woff2": "icons/woff2.png",
     ".wma": "icons/wma.png",
     ".xapk": "icons/xapk.png",
-    ".xls": "icons/xls.png",
-    ".xlsm": "icons/xlsm.png",
-    ".xlsx": "icons/xlsx.png",
+    # ".xls": "icons/xls.png",     # removed for test_pack demo
+    # ".xlsm": "icons/xlsm.png",   # removed for test_pack demo
+    # ".xlsx": "icons/xlsx.png",   # removed for test_pack demo
     ".xml": "icons/xml.png",
     ".xmp": "icons/xmp.png",
     ".xz": "icons/tar-xz.png",
@@ -231,4 +229,3 @@ description_map = {
     ".xz": "XZ Compressed Tar Archive",
     ".zip": "ZIP Archive File"
 }
-
