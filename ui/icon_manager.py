@@ -392,7 +392,8 @@ class _AddEntryDialog(ctk.CTkToplevel):
     def __init__(self, master, on_save=None, prefill_ext: str = "", **kw):
         super().__init__(master, **kw)
         self.title("Add Icon Mapping")
-        self.geometry("420x400")
+        self.geometry("420x440")
+        self.minsize(380, 440)
         self.resizable(False, False)
         self.configure(fg_color=BG_CARD)
         self._on_save     = on_save
