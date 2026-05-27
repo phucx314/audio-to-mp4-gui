@@ -93,6 +93,7 @@ class IconManagerDialog(ctk.CTkToplevel):
     def _deferred_init(self):
         _fix_default_root(self)
         self._build_ui()
+        self._bind_scroll()       # activate scroll bindings immediately
         self._load_entries()
         self.deiconify()
         self.after(200, self._post_show)
@@ -197,10 +198,6 @@ class IconManagerDialog(ctk.CTkToplevel):
         self._grid_frame.bind("<Configure>",
             lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
         self._canvas.bind("<Configure>", self._on_canvas_resize)
-
-        # Scroll bindings (enter/leave)
-        self._canvas.bind("<Enter>", self._bind_scroll)
-        self._canvas.bind("<Leave>", self._unbind_scroll)
 
 
     def _on_canvas_resize(self, e):
